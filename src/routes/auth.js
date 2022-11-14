@@ -204,7 +204,7 @@ authRouter.post("/sign-out", (request, response) => {
     const jwtSession = cookies.sessionId
     //expires the cookie by making the max age = 1 ms
     response.cookie("sessionId", jwtSession, {maxAge: 1})
-    response.send({ data: null, message:"ok" })
+    response.send({ data: null, message:"ok, ur signed out" })
 })
 
 export default authRouter;
