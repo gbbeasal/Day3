@@ -10,8 +10,43 @@ const SALT_ROUNDS = 10
 const authRouter = express.Router()
 
 // GET /me
-authRouter.get("/me", (request, response) => {
-    response.send({ data:null, message: "ok"})
+authRouter.get("/me", async (request, response) => {
+    // response.send({ data:null, message: "ok"})
+    const cookies = request.cookies
+    const jwtSession = cookies.sessionId
+    // console.log("cookies", cookies)
+    // console.log("jwtSessoin", jwtSession)
+    // response.send( {data: null, message: "ok"} )
+
+    // gets yung sessionId mo from kanina and checks if authenticated ka
+    // authenticated == not expired si seshId
+    // pero pag wala kang sesh token, matic out
+    if (!jwtSession) {
+        response.status(401).send({ data: null, message: "not authen"})
+        return
+    }
+
+    // gets yung sessionId mo from kanina and checks if authenticated ka
+    // authenticated == not expired si seshId
+    // pang check if yung session mo, authenticated user ka talaga
+    try {
+        const jwtSessionObject = await jwt.verify(
+            jwtSession,
+            process.env.JWT_SECRET
+        )
+        const userId = jwtSessionObject.uid
+        const user = await request.app.locals.prisma.user.findUnique({
+            where: { id: userId},
+        })
+        const filteredUser = omit(user, ["password", "id"])
+        response.send({
+            user: filteredUser,
+            message: filteredUser ? "ok" : "error"
+        })
+    } catch {
+        response.status(401).send({ data: null, message: "jwt is not valid"})
+    }
+
 })
 
 
@@ -34,7 +69,43 @@ authRouter.post("/sign-up", async (request, response) => {
         data: filteredBody,
     })
 
-    response.send({ data:filteredBody, message: "ok"})
+    const filteredUser = omit(user, ["id", "password"])
+
+    // create jwt session obj thaty contains info
+    const jwtSessionObject = {
+        uid: user.id,
+        email: user.email
+    }
+
+    // 0.5 * 24 * 60 *60 = 12 hrs, 2 * 24 * 60 *60 = 48 hrs
+    const maxAge = 1 * 24 * 60 *60
+    // create a jwt using the jwtsign func. Pass mga gusto mo i cryptographically sign
+    // pass in the JWT_SECRET to help make it
+    const jwtSession = await jwt.sign(jwtSessionObject, process.env.JWT_SECRET, {
+        expiresIn: maxAge //this jwt will expire in 24 hrs
+        // expires in reqs time in millisecs
+    })
+    // jwt = cryptographically signed json
+    // json contains important info u need to sign in kunwari (i. uid, email)
+
+    // lets u see the jwt session created
+    // u can have multiple sessions kase diba ako nag lologin sa fb via 
+    // chrome, firefox, etc.
+    console.log("jwtSession", jwtSession)
+
+    // attach jwt sesh to a cookie to make it easier for the frontend guys
+    // make a cookie:
+    response.cookie("sessionId", jwtSession, {
+        httpOnly: true,
+        maxAge: maxAge * 1000, //bc this is in seconds
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production" ? true : false,
+    })
+
+
+    response.send({ data:filteredUser, message: "ok"})
+
+    // response.send({ data:filteredBody, message: "ok"})
 })
 
 // ========== POST /sign-in ========== 
@@ -127,13 +198,14 @@ async (request, response) => {
 
 // ========== POST /sign-out ========== 
 // ask: how to make it sticky ba so that may purpose naman yung sign out
+// sticky na kase sya kanina lol
 authRouter.post("/sign-out", (request, response) => {
-    response.send({ data:null, message: "ok"})
+    // response.send({ data:null, message: "ok"})
+    const cookies = request.cookies
+    const jwtSession = cookies.sessionId
+    //expires the cookie by making the max age = 1 ms
+    response.cookie("sessionId", jwtSession, {maxAge: 1})
+    response.send({ data: null, message:"ok" })
 })
-
-
-
-
-
 
 export default authRouter;
