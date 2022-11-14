@@ -3,6 +3,7 @@ import pick from "lodash/pick.js"
 import bcrypt from "bcrypt"
 import omit from "lodash/omit.js"
 import { body, validationResult } from "express-validator"
+import jwt from "jsonwebtoken"
 
 const SALT_ROUNDS = 10
 
@@ -14,7 +15,7 @@ authRouter.get("/me", (request, response) => {
 })
 
 
-// POST /sign-up
+// ========== POST /sign-up ========== 
 // takes in the body sa postman, filters out malicious fields to ckean ur data,
 // hashes ur pw before creating a user sa db mo
 // returns the user you created
@@ -36,7 +37,7 @@ authRouter.post("/sign-up", async (request, response) => {
     response.send({ data:filteredBody, message: "ok"})
 })
 
-// POST /sign-in
+// ========== POST /sign-in ========== 
 authRouter.post(
     "/sign-in",
 [
@@ -88,10 +89,44 @@ async (request, response) => {
     // response.send({ data:user, message: "ok"})
     // para result mo wala yung password use omit to omit showing the id and pw ng user
     const filteredUser = omit(user, ["id", "password"])
+
+    // create jwt session obj thaty contains info
+    const jwtSessionObject = {
+        uid: user.id,
+        email: user.email
+    }
+
+    // 0.5 * 24 * 60 *60 = 12 hrs, 2 * 24 * 60 *60 = 48 hrs
+    const maxAge = 1 * 24 * 60 *60
+    // create a jwt using the jwtsign func. Pass mga gusto mo i cryptographically sign
+    // pass in the JWT_SECRET to help make it
+    const jwtSession = await jwt.sign(jwtSessionObject, process.env.JWT_SECRET, {
+        expiresIn: maxAge //this jwt will expire in 24 hrs
+        // expires in reqs time in millisecs
+    })
+    // jwt = cryptographically signed json
+    // json contains important info u need to sign in kunwari (i. uid, email)
+
+    // lets u see the jwt session created
+    // u can have multiple sessions kase diba ako nag lologin sa fb via 
+    // chrome, firefox, etc.
+    console.log("jwtSession", jwtSession)
+
+    // attach jwt sesh to a cookie to make it easier for the frontend guys
+    // make a cookie:
+    response.cookie("sessionId", jwtSession, {
+        httpOnly: true,
+        maxAge: maxAge * 1000, //bc this is in seconds
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production" ? true : false,
+    })
+
+
     response.send({ data:filteredUser, message: "ok"})
 })
 
-// POST /sign-out
+// ========== POST /sign-out ========== 
+// ask: how to make it sticky ba so that may purpose naman yung sign out
 authRouter.post("/sign-out", (request, response) => {
     response.send({ data:null, message: "ok"})
 })
