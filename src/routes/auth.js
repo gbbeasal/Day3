@@ -49,7 +49,6 @@ authRouter.get("/me", async (request, response) => {
 
 })
 
-
 // ========== POST /sign-up ========== 
 // takes in the body sa postman, filters out malicious fields to ckean ur data,
 // hashes ur pw before creating a user sa db mo
